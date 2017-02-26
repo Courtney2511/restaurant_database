@@ -121,6 +121,33 @@ def gconnect():
     return output
 
 
+# DISCONNECT - revoke users token and reset their login_session
+@app.route('/gdisconnect')
+def gdisconnect():
+    # only disconnect a connected user
+    credentials = login_session.get('credentials')
+    if credentials is None:
+        response = make_response(json.dumps('Current User not connected'), 401)
+        response.headers['Content-Type'] = 'application/json'
+        return response
+    # execute HTTP GET request to revoke current token
+    url = 'https://accounts.google.com/o/oauth2/revoke?token=%s' % credentials
+    h = httplib2.Http()
+    result = h.request(url, 'GET')[0]
+
+    if result['status'] == 200:
+        # Reset the users session
+        del login_session['credentials']
+        del login_session['gplus_id']
+        del login_session['username']
+        del login_session['email']
+        del login_session['picture']
+
+    response = make_response(json.dumps("Successfully disconnected"), 200)
+    response.headers['Content-Type'] = 'application/json'
+    return response
+
+
 # JSON APIs to view Restaurant Information
 @app.route('/restaurant/<int:restaurant_id>/menu/JSON')
 def restaurantMenuJSON(restaurant_id):
