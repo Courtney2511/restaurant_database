@@ -52,7 +52,27 @@
         }
       }
     </script>
+    <!-- FACEBOOK SIGN IN -->
+    <script>
+      window.fbAsyncInit = function() {
+        FB.init({
+          appId   : '202533063560713',
+          cookie  : True,  // enable cookies to allow server access to the session
+          xfbml   : True,  // parse social plugins on this page
+          version : 'v2.8'
+        });
+        FB.AppEvents.logPageView();
+      };
 
+      // Load  and initialize the SDK asynchonously
+      (function(d, s, id) {
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementsById(id)) {return;}
+        js = d.createElement(s); js.id = id;
+        js.src = "//connect.facebook.net/en_US/sdk.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'facebook-jssdk'));
+    </script>
 
 </body>
 </html>
