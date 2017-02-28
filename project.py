@@ -91,7 +91,7 @@ def fbconnect():
     user_id = getUserId(login_session['email'])
     if not user_id:
         user_id = createUser(login_session)
-    login_session[user_id] = user_id
+    login_session['user_id'] = user_id
 
     output = ''
     output += '<h1>Welcome, '
@@ -105,7 +105,7 @@ def fbconnect():
     flash("Now logged in as %s" % login_session['username'])
     return output
 
-# disconnect from facebook
+# FACEBOOK disconnect
 @app.route('/fbdisconnect')
 def fbdisconnect():
     facebook_id = login_session['facebook_id']
@@ -184,7 +184,8 @@ def gconnect():
     answer = requests.get(userinfo_url, params=params)
 
     data = answer.json()
-
+    #store user info in login_session
+    login_session['provider'] = 'google'
     login_session['username'] = data['name']
     login_session['picture'] = data['picture']
     login_session['email'] = data['email']
@@ -207,7 +208,7 @@ def gconnect():
     return output
 
 
-# DISCONNECT - revoke users token and reset their login_session
+# GOOGLE DISCONNECT - revoke users token and reset their login_session
 @app.route('/gdisconnect')
 def gdisconnect():
     # only disconnect a connected user
@@ -232,6 +233,28 @@ def gdisconnect():
     response = make_response(json.dumps("Successfully disconnected"), 200)
     response.headers['Content-Type'] = 'application/json'
     return response
+
+# refactored disconnect (based on provider)
+@app.route('/disconnect')
+def disconnect():
+    if 'provider' in login_session:
+        if login_session['provider'] == 'google':
+            gdisconnect()
+            del login_session['gplus_id']
+            del login_session['credentials']
+        if login_session['provider'] == 'facebook':
+            fbdisconnect()
+            del login_session['facebook_id']
+        del login_session['username']
+        del login_session['email']
+        del login_session['picture']
+        del login_session['user_id']
+        del login_session['provider']
+        flash("You have been successfully logged out")
+        return redirect(url_for('showRestaurants'))
+    else:
+        flash("You were not logged in")
+        redirect(url_for('showRestaurants'))
 
 
 # JSON APIs to view Restaurant Information
@@ -261,7 +284,7 @@ def showRestaurants():
     restaurants = session.query(Restaurant).order_by(asc(Restaurant.name))
     # checks for a logged in user to determine page view
     if 'username' not in login_session:
-        return render_template('puplicrestaurants.html', restaurants=restaurants)
+        return render_template('publicrestaurants.html', restaurants=restaurants)
     else:
         return render_template('restaurants.html', restaurants=restaurants)
 
