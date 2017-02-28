@@ -28,16 +28,96 @@ DBSession = sessionmaker(bind=engine)
 session = DBSession()
 
 
-# Create a state token to prevent request forgery (Anti Forgery State Tokem)
-# Store it in the session for later validation
+# login
 @app.route('/login')
 def showLogin():
+    # Create a state token to prevent request forgery (Anti Forgery State Token)
     state = ''.join(random.choice(string.ascii_uppercase +
                                   string.digits) for x in xrange(32))
+    # Store it in the session for later validation
     login_session['state'] = state
     return render_template('login.html', STATE=state)
 
 
+# log in through facebook
+@app.route('/fbconnect', methods=['POST'])
+def fbconnect():
+    # validate state token
+    if request.args.get('state') != login_session['state']:
+        response = make_response(json.dumps('Invalid state parameter'), 401)
+        response.headers['Content-Type'] = 'application/json'
+        return response
+    # obtain authorization token
+    access_token = request.data
+    print "access token received: %s" % access_token
+
+    # exchange client token for long-lived server side token
+    app_id = json.loads(open('fb_client_secrets.json', 'r').read())['web']['app_id']
+    app_secret = json.loads(open('fb_client_secrets.json', 'r').read())['web']['app_secret']
+    url = 'https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id=%s&client_secret=%s&fb_exchange_token=%s' % (app_id, app_secret, access_token)
+    h = httplib2.Http()
+    result = h.request(url, 'GET')[1]
+
+    # use token to get use info from API
+    userinfo_url = "https://graph.facebook.com/v2.8/me"
+    # strip expire tag from token
+    token = result.split("&")[0]
+    # use token to make an API call for user info
+    url = 'https://graph.facebook.com/v2.4/me?%s&fields=name,id,email' % token
+    h = httplib2.Http()
+    result = h.request(url, 'GET')[1]
+    print "API JSON result: %s" % result
+    data = json.loads(result)
+    print data
+    # store user info in login session
+    login_session['provider'] = 'facebook'
+    login_session['facebook_id'] = data["id"]
+    login_session['username'] = data["name"]
+    login_session['email'] = data["email"]
+
+    # to log out, token must be stored in the login_session
+    stored_token = token.split("=")[1]
+    login_session['access_token'] = stored_token
+
+    # Get user picture
+    url = 'https://graph.facebook.com/me/picture?%s&redirect=0&height=200&width=200' % token
+    h = httplib2.Http()
+    result = h.request(url, 'GET')[1]
+    data = json.loads(result)
+    # store user picture in login session
+    login_session['picture'] = data["data"]["url"]
+
+    # see if user exists
+    user_id = getUserId(login_session['email'])
+    if not user_id:
+        user_id = createUser(login_session)
+    login_session[user_id] = user_id
+
+    output = ''
+    output += '<h1>Welcome, '
+    output += login_session['username']
+
+    output += '!</h1>'
+    output += '<img src="'
+    output += login_session['picture']
+    output += ' " style = "width: 300px; height: 300px;border-radius: 150px;-webkit-border-radius: 150px;-moz-border-radius: 150px;"> '
+
+    flash("Now logged in as %s" % login_session['username'])
+    return output
+
+# disconnect from facebook
+@app.route('/fbdisconnect')
+def fbdisconnect():
+    facebook_id = login_session['facebook_id']
+    # access token must be included for successful logout
+    access_token = login_session['access_token']
+    url = 'https://graph.facebook.com/%s/permissions?access_token=%s' % (facebook_id,access_token)
+    h = httplib2.Http()
+    result = h.request(url, 'DELETE')[1]
+    return "you have been logged out"
+
+
+# log in through google
 @app.route('/gconnect', methods=['POST'])
 def gconnect():
     # Validate state token
@@ -333,8 +413,11 @@ def getUserInfo(user_id):
 
 
 def getUserId(email):
-    user = session.query(User).filter_by(email=email).one()
-    return user.id
+    try:
+        user = session.query(User).filter_by(email=email).one()
+        return user.id
+    except:
+        return None
 
 
 if __name__ == '__main__':

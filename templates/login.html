@@ -52,13 +52,14 @@
         }
       }
     </script>
+
     <!-- FACEBOOK SIGN IN -->
     <script>
       window.fbAsyncInit = function() {
         FB.init({
           appId   : '202533063560713',
-          cookie  : True,  // enable cookies to allow server access to the session
-          xfbml   : True,  // parse social plugins on this page
+          cookie  : true,  // enable cookies to allow server access to the session
+          xfbml   : true,  // parse social plugins on this page
           version : 'v2.8'
         });
         FB.AppEvents.logPageView();
@@ -67,12 +68,48 @@
       // Load  and initialize the SDK asynchonously
       (function(d, s, id) {
         var js, fjs = d.getElementsByTagName(s)[0];
-        if (d.getElementsById(id)) {return;}
+        if (d.getElementById(id)) {return;}
         js = d.createElement(s); js.id = id;
         js.src = "//connect.facebook.net/en_US/sdk.js";
         fjs.parentNode.insertBefore(js, fjs);
       }(document, 'script', 'facebook-jssdk'));
+
+      // run a test of Graph API after login is Successful
+      // see statusChangeCallback() for when this call is made
+      function sendTokenToServer() {
+        var access_token = FB.getAuthResponse()['accessToken'];
+        console.log(access_token);
+        console.log('Welcome! Fetching your information...');
+        FB.api('/me', function(response) {
+          console.log('Successful login for:' + response.name);
+          $.ajax({
+            type: 'POST',
+            url: '/fbconnect?state={{STATE}}',
+            processData: false,
+            data: access_token,
+            contentType: 'application/octet-stream; charset=utf-8',
+            success: function(result) {
+              //Handle or verify the server response if neccessary
+              if (result) {
+                $('#result').html('Login successful!</br>' + result + '</br>Redirecting....')
+                setTimeout(function(){
+                  window.location.href = "/restaurant";
+                }, 4000);
+              } else {
+                $('#result').html('Failed to make a server-side call.  Check your configurationa and console')
+              }
+            }
+          });
+        });
+      }
     </script>
+
+    <button>
+      <fb:login-button scope="public_profile, email" onlogin="sendTokenToServer();">
+        <a href="javascript:sendTokenToServer()">Login with Facebook</a>
+      </fb:login-button>
+    </button>
+    <!-- END FACEBOOK LOGIN -->
 
 </body>
 </html>
